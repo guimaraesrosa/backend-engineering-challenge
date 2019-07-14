@@ -1,3 +1,17 @@
+# Code Execution  
+
+To run this application is needed install python3 and to have the libraries:
+	- argparse
+	- json
+	- datetime
+	- os
+	
+
+To execute this aplication, type:
+	./unbabel_cli --input_file events.json --window_size X
+
+where X it the moving average required in minutes.
+
 # Backend Engineering Challenge
 
 

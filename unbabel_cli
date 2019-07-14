@@ -1,0 +1,132 @@
+#!/usr/bin/env python
+
+import argparse
+import json
+from datetime import datetime, timedelta
+import os
+
+class Events(object):
+    def __init__(self, input_file, window_size):
+        '''
+            Initialize principal variables
+            
+            Input:
+                - input_file: name input file
+                - window_size: window for moving average in minuts
+        '''
+        self.input_file = input_file
+        self.window_size = window_size
+
+    def check_file(self):
+        '''
+            Check if output file already exist, if yes, delete file and a new one will be created.
+        '''
+
+        exist = os.path.isfile('output.json')
+        if exist:
+            os.remove("output.json")
+            print("Output file already exist and it will be removed, a new one will be created!")
+
+    def reading_file(self):
+        '''
+            Read input file
+
+            Output:
+                - events: list of dictionary containing all content about the file
+        '''
+        try:
+            events = []
+            for line in open(self.input_file, 'r'):
+                events.append(json.loads(line))
+        except:
+            print("Error reading the file: ", self.input_file)
+            exit(1)
+
+        return events
+
+    def writing_file(self, timestamp, ma):
+        
+        '''
+            Write the aggregated output. This function is called more than one time.
+            
+            Input:
+                - timestamp: contain the current date
+                - ma: moving average for curent date
+        '''
+
+        data = {}
+        data['date'] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        data['average_delivery_time'] = round(ma,2)
+
+        with open('output.json', 'a') as outfile:  
+            json.dump(data, outfile)
+            outfile.write("\n")
+
+
+    def calculate_moving_average(self, start_timestamp, timestamp, duration):
+
+        '''
+            Calculate, for every minute, a moving average of the translation delivery time for the last X minutes.
+
+            Input:
+                - start_timestamp: current date that is based to do the moving average
+                - timestamp: date time list with all timestamp contained at input file
+                - duration: duration list with all durations contained at input file
+
+            Output:
+                - if exist returns the moving averaging, otherwise, returns zero 
+
+        '''
+        ma = []
+        for i in range(len(duration)):
+            if start_timestamp >= timestamp[i] and start_timestamp - timedelta(minutes=self.window_size) < timestamp[i]:
+                ma.append(duration[i])
+
+        if len(ma) == 0:
+            return 0
+        else:
+            return sum(ma)/len(ma)
+
+
+    def translation_delivery_time(self, events):
+
+        '''
+            Manipulate variables as timestamps and duration to fix the problem
+            Call functions calculate_moving_average(calculate MA) and writing_file(produces an aggregated output)
+            Input:
+                - events: list of dictionary with all content contained at input file
+
+        '''
+
+        timestamp = []
+        duration = []
+        for i in range(len(events)):
+            ts = datetime.strptime(events[i]['timestamp'], '%Y-%m-%d %H:%M:%S.%f')
+            duration.append(events[i]['duration'])
+            timestamp.append(ts)
+    
+        max_timestamp = max(timestamp) + timedelta(minutes=1)
+        min_timestamp = min(timestamp).replace(second=0,microsecond=0)
+
+        while min_timestamp <= max_timestamp:
+            ma = self.calculate_moving_average(min_timestamp, timestamp, duration)
+            self.writing_file(min_timestamp, ma)
+            min_timestamp += timedelta(minutes=1)
+
+
+if __name__ == '__main__':
+
+    '''
+        Get required arguments and generate class Events
+    '''
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input_file', help='input file argument', required=True)
+    parser.add_argument('--window_size', type=int, choices=range(0, 1000), metavar='[0-1000]', help='window size argument in minutes', required=True)
+    args = vars(parser.parse_args())
+
+    evt = Events(args['input_file'], args['window_size'])
+
+    evt.check_file()
+    events = evt.reading_file()
+    evt.translation_delivery_time(events)
+    
